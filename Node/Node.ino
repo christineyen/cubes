@@ -32,9 +32,9 @@
 //*********************************************************************************************
 //************ IMPORTANT SETTINGS - YOU MUST CHANGE/CONFIGURE TO FIT YOUR HARDWARE ************
 //*********************************************************************************************
-#define NODEID        2    //must be unique for each node on same network (range up to 254, 255 is used for broadcast)
+//#define NODEID        2    //PROVIDED BY BUILD -- must be unique for each node on same network (range up to 254, 255 is used for broadcast)
 #define NETWORKID     200  //the same on all nodes that talk to each other (range up to 255)
-#define GATEWAYID     1
+#define GATEWAYID     3
 //Match frequency to the hardware version of the radio on your Moteino (uncomment one):
 //#define FREQUENCY   RF69_433MHZ
 //#define FREQUENCY   RF69_868MHZ
