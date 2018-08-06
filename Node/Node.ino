@@ -34,7 +34,6 @@
 //*********************************************************************************************
 //#define NODEID        2    //PROVIDED BY BUILD -- must be unique for each node on same network (range up to 254, 255 is used for broadcast)
 #define NETWORKID     200  //the same on all nodes that talk to each other (range up to 255)
-#define GATEWAYID     3
 //Match frequency to the hardware version of the radio on your Moteino (uncomment one):
 //#define FREQUENCY   RF69_433MHZ
 //#define FREQUENCY   RF69_868MHZ
@@ -62,10 +61,12 @@
 #define SERIAL_BAUD   115200
 
 int TRANSMITPERIOD = 200; //transmit a packet to gateway so often (in ms)
-char payload[] = "you get me a sandwich i'm a pastrami hog";
-char buff[20];
-byte sendSize=0;
 SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
+
+
+// SPECIAL SHIT
+char payload[] = ".";
+int XMIT_ID = NODEID - 1;
 
 #ifdef ENABLE_ATC
   RFM69_ATC radio;
@@ -97,6 +98,9 @@ void setup() {
 #ifdef ENABLE_ATC
   Serial.println("RFM69_ATC Enabled (Auto Transmission Control)\n");
 #endif
+
+  // Define payload as the NODEID
+  itoa(NODEID, payload, 1);
 }
 
 long lastPeriod = 0;
@@ -154,6 +158,10 @@ void loop() {
       Serial.print((char)radio.DATA[i]);
     Serial.print("   [RX_RSSI:");Serial.print(radio.RSSI);Serial.print("]");
 
+    // Set XMIT_ID to be the previous sender
+    // eventually do something smarter here wrt decays, etc
+    XMIT_ID = radio.SENDERID;
+
     if (radio.ACKRequested()) {
       byte theNodeID = radio.SENDERID;
       radio.sendACK();
@@ -167,29 +175,14 @@ void loop() {
   if (currPeriod != lastPeriod) {
     lastPeriod=currPeriod;
 
-    //send FLASH id
-    if(sendSize==0) {
-      sprintf(buff, "FLASH_MEM_ID:0x%X", flash.readDeviceId());
-      Serial.println(buff);
-      byte buffLen=strlen(buff);
-      if (radio.sendWithRetry(GATEWAYID, buff, buffLen)) {
-        Serial.print(" ok!");
-      } else {
-        Serial.print(" nothing...");
-      }
-      //sendSize = (sendSize + 1) % 31;
+    Serial.print("Sending to: ");
+    Serial.println(XMIT_ID);
+    // The first time will fail;
+    if (radio.sendWithRetry(XMIT_ID, payload, 1)) {
+      Serial.print(" ok!");
     } else {
-      Serial.print("Sending[");
-      Serial.print(sendSize);
-      Serial.print("]: ");
-      for(byte i = 0; i < sendSize; i++)
-        Serial.print((char)payload[i]);
-
-      if (radio.sendWithRetry(GATEWAYID, payload, sendSize))
-       Serial.print(" ok!");
-      else Serial.print(" nothing...");
+      Serial.print(" failed...");
     }
-    sendSize = (sendSize + 1) % 31;
     Serial.println();
   }
 }

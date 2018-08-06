@@ -35,13 +35,13 @@ run_sketch() { # takes three args: SKETCH, NODEID, PORT
     -Uflash:w:$BUILD_PATH/$SKETCH.ino.hex:i
 }
 
-echo "======= Building Node... on $PORT1"
-run_sketch "Node" 4 $PORT1
+echo "======= Building Node 1... on $PORT1"
+run_sketch "Node" 3 $PORT1
 
-echo "======= Building Gateway... on $PORT2"
-run_sketch "Gateway" 3 $PORT2
+echo "======= Building Node 2... on $PORT2"
+run_sketch "Node" 4 $PORT2
 
 
-screen -dmS sender /dev/$PORT1 57600
-screen -dmS receiver /dev/$PORT2 57600
-echo "reattach screens 'sender' or 'receiver'"
+screen -dmS alpha /dev/$PORT1 57600
+screen -dmS beta /dev/$PORT2 57600
+echo "reattach screens 'alpha' or 'beta'"
