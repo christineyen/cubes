@@ -62,10 +62,9 @@
 #define SERIAL_BAUD   115200
 
 int TRANSMITPERIOD = 200; //transmit a packet to gateway so often (in ms)
-char payload[] = "123 ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+char payload[] = "you get me a sandwich i'm a pastrami hog";
 char buff[20];
 byte sendSize=0;
-boolean requestACK = false;
 SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 
 #ifdef ENABLE_ATC
@@ -95,53 +94,27 @@ void setup() {
   sprintf(buff, "\nTransmitting at %d Mhz...", FREQUENCY==RF69_433MHZ ? 433 : FREQUENCY==RF69_868MHZ ? 868 : 915);
   Serial.println(buff);
 
-  if (flash.initialize())
-  {
-    Serial.print("SPI Flash Init OK ... UniqueID (MAC): ");
-    flash.readUniqueId();
-    for (byte i=0;i<8;i++)
-    {
-      Serial.print(flash.UNIQUEID[i], HEX);
-      Serial.print(' ');
-    }
-    Serial.println();
-  }
-  else
-    Serial.println("SPI Flash MEM not found (is chip soldered?)...");
-
 #ifdef ENABLE_ATC
   Serial.println("RFM69_ATC Enabled (Auto Transmission Control)\n");
 #endif
 }
 
-void Blink(byte PIN, int DELAY_MS)
-{
-  pinMode(PIN, OUTPUT);
-  digitalWrite(PIN,HIGH);
-  delay(DELAY_MS);
-  digitalWrite(PIN,LOW);
-}
-
 long lastPeriod = 0;
 void loop() {
   //process any serial input
-  if (Serial.available() > 0)
-  {
+  if (Serial.available() > 0) {
     char input = Serial.read();
-    if (input >= 48 && input <= 57) //[0,9]
-    {
+    if (input >= 48 && input <= 57) { //[0,9]
       TRANSMITPERIOD = 100 * (input-48);
       if (TRANSMITPERIOD == 0) TRANSMITPERIOD = 1000;
       Serial.print("\nChanging delay to ");
       Serial.print(TRANSMITPERIOD);
       Serial.println("ms\n");
     }
-
-    if (input == 'r') //d=dump register values
+    if (input == 'r') { //d=dump register values
       radio.readAllRegs();
-
-    if (input == 'd') //d=dump flash area
-    {
+    }
+    if (input == 'd') { //d=dump flash area
       Serial.println("Flash content:");
       uint16_t counter = 0;
 
@@ -153,55 +126,59 @@ void loop() {
       while(flash.busy());
       Serial.println();
     }
-    if (input == 'e')
-    {
+    if (input == 'e') {
       Serial.print("Erasing Flash chip ... ");
       flash.chipErase();
       while(flash.busy());
       Serial.println("DONE");
     }
-    if (input == 'i')
-    {
-      Serial.print("DeviceID: ");
-      word jedecid = flash.readDeviceId();
-      Serial.println(jedecid, HEX);
+    if (input == 'i') {
+      Serial.print("Node ID: ");
+      Serial.print(NODEID);
+    }
+    if (input == 't') {
+      byte temperature =  radio.readTemperature(-1); // -1 = user cal factor, adjust for correct ambient
+      byte fTemp = 1.8 * temperature + 32; // 9/5=1.8
+      Serial.print( "Radio Temp is ");
+      Serial.print(temperature);
+      Serial.print("C, ");
+      Serial.print(fTemp); //converting to F loses some resolution, obvious when C is on edge between 2 values (ie 26C=78F, 27C=80F)
+      Serial.println('F');
     }
   }
 
   //check for any received packets
-  if (radio.receiveDone())
-  {
+  if (radio.receiveDone()) {
     Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
     for (byte i = 0; i < radio.DATALEN; i++)
       Serial.print((char)radio.DATA[i]);
     Serial.print("   [RX_RSSI:");Serial.print(radio.RSSI);Serial.print("]");
 
-    if (radio.ACKRequested())
-    {
+    if (radio.ACKRequested()) {
+      byte theNodeID = radio.SENDERID;
       radio.sendACK();
-      Serial.print(" - ACK sent");
+      Serial.print(" - ACK sent to ");
+      Serial.print(theNodeID);
     }
-    Blink(LED,3);
     Serial.println();
   }
 
   int currPeriod = millis()/TRANSMITPERIOD;
-  if (currPeriod != lastPeriod)
-  {
+  if (currPeriod != lastPeriod) {
     lastPeriod=currPeriod;
 
     //send FLASH id
-    if(sendSize==0)
-    {
+    if(sendSize==0) {
       sprintf(buff, "FLASH_MEM_ID:0x%X", flash.readDeviceId());
+      Serial.println(buff);
       byte buffLen=strlen(buff);
-      if (radio.sendWithRetry(GATEWAYID, buff, buffLen))
+      if (radio.sendWithRetry(GATEWAYID, buff, buffLen)) {
         Serial.print(" ok!");
-      else Serial.print(" nothing...");
+      } else {
+        Serial.print(" nothing...");
+      }
       //sendSize = (sendSize + 1) % 31;
-    }
-    else
-    {
+    } else {
       Serial.print("Sending[");
       Serial.print(sendSize);
       Serial.print("]: ");
@@ -214,6 +191,5 @@ void loop() {
     }
     sendSize = (sendSize + 1) % 31;
     Serial.println();
-    Blink(LED,3);
   }
 }
