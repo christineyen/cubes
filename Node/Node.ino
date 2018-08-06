@@ -24,6 +24,7 @@
 // Please maintain this license information along with authorship
 // and copyright notices in any redistribution of this code
 // **********************************************************************************
+#include "FastLED.h"                                          // FastLED library. Please use the latest development version.
 #include <RFM69.h>         //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <RFM69_ATC.h>     //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <SPIFlash.h>      //get it here: https://www.github.com/lowpowerlab/spiflash
@@ -35,8 +36,6 @@
 //#define NODEID        2    //PROVIDED BY BUILD -- must be unique for each node on same network (range up to 254, 255 is used for broadcast)
 #define NETWORKID     200  //the same on all nodes that talk to each other (range up to 255)
 //Match frequency to the hardware version of the radio on your Moteino (uncomment one):
-//#define FREQUENCY   RF69_433MHZ
-//#define FREQUENCY   RF69_868MHZ
 #define FREQUENCY     RF69_915MHZ
 //#define ENCRYPTKEY    "yougetmeYAAAY" //exactly the same 16 characters/bytes on all nodes! -- seems buggy
 #define IS_RFM69HW_HCW  //uncomment only for RFM69HW/HCW! Leave out if you have RFM69W/CW!
@@ -60,6 +59,18 @@
 
 #define SERIAL_BAUD   115200
 
+// LED BITS, obviously
+#define LED_DT 6                                             // Data pin to connect to the strip.
+/*#define LED_CK 11                                             // Clock pin for WS2801 or APA102.*/
+#define COLOR_ORDER GRB                                       // It's GRB for WS2812 and BGR for APA102.
+#define LED_TYPE WS2812                                       // Using APA102, WS2812, WS2801. Don't forget to change LEDS.addLeds.
+#define NUM_LEDS 5                                          // Number of LED's.
+
+uint8_t max_bright = 0;                                      // Overall brightness definition.
+struct CRGB leds[NUM_LEDS];                                   // Initialize our LED array.
+
+// Back to being radio bits
+
 int TRANSMITPERIOD = 200; //transmit a packet to gateway so often (in ms)
 SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 
@@ -76,6 +87,12 @@ int XMIT_ID = NODEID - 1;
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
+  delay(1000);                                                // Soft startup to ease the flow of electrons.
+
+  FastLED.addLeds<NEOPIXEL, LED_DT>(leds, NUM_LEDS);
+  FastLED.setBrightness(50);
+  set_max_power_in_volts_and_milliamps(5, 500);               // FastLED Power management set at 5V, 500mA.
+
   radio.initialize(FREQUENCY,NODEID,NETWORKID);
 #ifdef IS_RFM69HW_HCW
   radio.setHighPower(); //must include this only for RFM69HW/HCW!
@@ -180,8 +197,12 @@ void loop() {
     // The first time will fail;
     if (radio.sendWithRetry(XMIT_ID, payload, 1)) {
       Serial.print(" ok!");
+      fill_solid(leds, NUM_LEDS, CRGB::Green);
+      FastLED.show();                         // Power managed display
     } else {
       Serial.print(" failed...");
+      fill_solid(leds, NUM_LEDS, CRGB::Red);
+      FastLED.show();                         // Power managed display
     }
     Serial.println();
   }
