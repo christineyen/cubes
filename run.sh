@@ -13,6 +13,7 @@ run_sketch() { # takes three args: SKETCH, NODEID, PORT
   local SKETCH=$1
   local NODEID=$2
   local PORT=$3
+  echo "======= Initializing node $2"
   arduino-builder -compile \
     -hardware $APP_JAVA_CONTENTS/hardware \
     -tools $APP_JAVA_CONTENTS/tools-builder \
@@ -35,13 +36,11 @@ run_sketch() { # takes three args: SKETCH, NODEID, PORT
     -Uflash:w:$BUILD_PATH/$SKETCH.ino.hex:i
 }
 
-echo "======= Building Node 1... on $PORT1"
-run_sketch "Node" 3 $PORT1
-
-echo "======= Building Node 2... on $PORT2"
-run_sketch "Node" 4 $PORT2
-
-
+echo "======= Building Node... on $PORT1"
+run_sketch "Node" $RANDOM $PORT1
 screen -dmS alpha /dev/$PORT1 57600
+
+echo "======= Building Node... on $PORT2"
+run_sketch "Node" $RANDOM $PORT2
 screen -dmS beta /dev/$PORT2 57600
 echo "reattach screens 'alpha' or 'beta'"
