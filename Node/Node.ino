@@ -77,7 +77,7 @@ struct CRGB leds[NUM_LEDS]; // Initialize our LED array.
 
 // CUBE-SPECIFIC STUFF
 char payload[] = "alpha"; // it really doesn't matter what the actual payload is, we're all just broadcasting into the ether
-int XMIT_ID = NODEID; // initialize to send to self at first; relies on promiscuousMode to pick up other nodes' broadcasts
+uint8_t XMIT_ID = NODEID; // initialize to send to self at first; relies on promiscuousMode to pick up other nodes' broadcasts
 
 // setup sets everything up! \o/
 void setup() {
@@ -178,10 +178,10 @@ void loop() {
     XMIT_ID = radio.SENDERID;
 
     if (radio.ACKRequested()) {
-      byte theNodeID = radio.SENDERID;
+      uint8_t theNodeID = radio.SENDERID;
       radio.sendACK();
       Serial.print(" - ACK sent to ");
-      Serial.print(theNodeID);
+      Serial.println(theNodeID, DEC);
     }
     Serial.println();
   }
@@ -190,8 +190,10 @@ void loop() {
   if (currPeriod != lastPeriod) {
     lastPeriod=currPeriod;
 
-    Serial.print("Sending to: ");
-    Serial.println(XMIT_ID);
+    Serial.print("Node ");
+    Serial.print(NODEID, DEC);
+    Serial.print(" sending to: ");
+    Serial.println(XMIT_ID, DEC);
     // The first time will fail;
     if (radio.sendWithRetry(XMIT_ID, payload, 1)) {
       Serial.print(" ok!");
