@@ -58,7 +58,7 @@
   #define FLASH_SS      8 // and FLASH SS on D8
 #endif
 
-int TRANSMITPERIOD = 200; //transmit a packet to gateway so often (in ms)
+int TRANSMITPERIOD = 500; //transmit a packet to gateway so often (in ms)
 SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 
 #ifdef ENABLE_ATC
@@ -76,8 +76,14 @@ SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 struct CRGB leds[NUM_LEDS]; // Initialize our LED array.
 
 // CUBE-SPECIFIC STUFF
-char payload[] = "alpha"; // it really doesn't matter what the actual payload is, we're all just broadcasting into the ether
-uint8_t XMIT_ID = NODEID; // initialize to send to self at first; relies on promiscuousMode to pick up other nodes' broadcasts
+typedef struct {
+  uint8_t nodeID;
+  uint8_t ticks;
+} NodeRecord;
+uint8_t DEFAULT_TICKS = 10;
+const char payload[] = "."; // it really doesn't matter what the actual payload is, we're all just broadcasting into the ether
+uint8_t NUM_NODES = 0;
+NodeRecord XMIT[10]; // initialize to send to self at first; relies on promiscuousMode to pick up other nodes' broadcasts
 
 // setup sets everything up! \o/
 void setup() {
@@ -173,9 +179,31 @@ void loop() {
       Serial.print((char)radio.DATA[i]);
     Serial.print("   [RX_RSSI:");Serial.print(radio.RSSI);Serial.print("]");
 
-    // Set XMIT_ID to be the previous sender
-    // eventually do something smarter here wrt decays, etc
-    XMIT_ID = radio.SENDERID;
+    // Find XMIT record, if appropriate
+    uint8_t idx = 0;
+    for (;idx < NUM_NODES; idx++) {
+      if (XMIT[idx].nodeID == radio.SENDERID) {
+        break;
+      }
+    }
+    // at this point idx will either be the correct index or equal to NUM_NODES
+    if (idx == NUM_NODES) {
+      XMIT[idx] = { radio.SENDERID, DEFAULT_TICKS };
+      NUM_NODES++;
+    } else {
+      // reset the number of ticks
+      XMIT[idx].ticks = DEFAULT_TICKS;
+    }
+
+    // Output diagnostics
+    Serial.print("XMIT NODES: ");
+    for (uint8_t i = 0; i < NUM_NODES; i++) {
+      Serial.print(XMIT[i].nodeID, DEC);
+      Serial.print(":");
+      Serial.print(XMIT[i].ticks, DEC);
+      Serial.print(" ");
+    }
+    Serial.println(";");
 
     if (radio.ACKRequested()) {
       uint8_t theNodeID = radio.SENDERID;
@@ -190,19 +218,51 @@ void loop() {
   if (currPeriod != lastPeriod) {
     lastPeriod=currPeriod;
 
-    Serial.print("Node ");
-    Serial.print(NODEID, DEC);
-    Serial.print(" sending to: ");
-    Serial.println(XMIT_ID, DEC);
-    // The first time will fail;
-    if (radio.sendWithRetry(XMIT_ID, payload, 1)) {
-      Serial.print(" ok!");
-      success = true;
-    } else {
-      Serial.print(" failed...");
-      success = false;
+    if (NUM_NODES == 0) {
+      // TODO transmit to myself just to get some packets out there?
+      Serial.println("No nodes to transmit to! Transmitting to myself");
+      radio.sendWithRetry(NODEID, payload, 1);
     }
-    Serial.println();
+    // Transmit to all the nodes I know about
+    for (uint8_t i = 0; i < NUM_NODES; i++) {
+      Serial.print("... Node ");
+      Serial.print(NODEID, DEC);
+      Serial.print(" sending to: ");
+      Serial.println(XMIT[i].nodeID, DEC);
+      // The first time will fail;
+      if (radio.sendWithRetry(XMIT[i].nodeID, payload, 1)) {
+        Serial.println(" ok!");
+        success = true;
+      } else {
+        Serial.println(" failed...");
+        success = false;
+      }
+      XMIT[i].ticks--;
+    }
+
+    // ... now let's compact that list if we can, in case any nodes have decayed out
+    uint8_t pruned = 0;
+    for (uint8_t i = 0; i < NUM_NODES; i++) {
+      if (XMIT[i].ticks == 0) {
+        pruned++;
+        for (uint8_t j = i; j < NUM_NODES; j++) {
+          XMIT[j-1] = XMIT[j];
+        }
+        XMIT[NUM_NODES-1] = {0,0};
+
+        bool anyLeft = false;
+        for (uint8_t j = 1; j < NUM_NODES; j++) {
+          if (XMIT[j].ticks > 0) {
+            anyLeft = true;
+            break;
+          }
+        }
+        if (anyLeft) {
+          i--; // we just compacted, check the same position
+        }
+      }
+    }
+    NUM_NODES -= pruned;
   }
 
   // And now reflect the effects of whatever we received during the receive phase
