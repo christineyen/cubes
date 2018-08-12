@@ -37,12 +37,13 @@ run_sketch() { # takes three args: SKETCH, NODEID, PORT
 }
 
 echo "======= Building Node... on $PORT1"
-NODEID=$(( $RANDOM % 256 ))
+# NODEID=$(( $RANDOM % 256 ))
+NODEID=6
 run_sketch "Node" $NODEID $PORT1
 screen -dmS alpha /dev/$PORT1 57600
 
 echo "======= Building Node... on $PORT2"
-NODEID=$(( $RANDOM % 256 ))
+NODEID=9
 run_sketch "Node" $NODEID $PORT2
 screen -dmS beta /dev/$PORT2 57600
 echo "reattach screens 'alpha' or 'beta'"

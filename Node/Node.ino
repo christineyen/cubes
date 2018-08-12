@@ -72,18 +72,43 @@ SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 // #define LED_CK 11         // Clock pin for WS2801 or APA102.
 #define COLOR_ORDER GRB     // It's GRB for WS2812 and BGR for APA102.
 #define LED_TYPE WS2812     // Using APA102, WS2812, WS2801. Don't forget to change LEDS.addLeds.
-#define NUM_LEDS 1          // Number of LED's.
+#define NUM_LEDS 20          // Number of LED's.
 struct CRGB leds[NUM_LEDS]; // Initialize our LED array.
 
 // CUBE-SPECIFIC STUFF
+const char PAYLOAD[] = "."; // it really doesn't matter what the actual payload is, we're all just broadcasting into the ether
 typedef struct {
   uint8_t nodeID;
   uint8_t ticks;
 } NodeRecord;
 uint8_t DEFAULT_TICKS = 10;
-const char payload[] = "."; // it really doesn't matter what the actual payload is, we're all just broadcasting into the ether
 uint8_t NUM_NODES = 0;
 NodeRecord XMIT[10]; // initialize to send to self at first; relies on promiscuousMode to pick up other nodes' broadcasts
+
+// COLORS (10 or fewer)
+const CRGB PLT_PINKS[4] = { CRGB::DeepPink, CRGB::HotPink, CRGB::LightPink, CRGB::Pink  };
+const CRGB PLT_REDS[4] = { CRGB::DarkRed, CRGB::IndianRed, CRGB::Red, CRGB::OrangeRed };
+const CRGB PLT_ORANGES[4] = { CRGB::DarkOrange, CRGB::Orange, CRGB::Coral, CRGB::LightSalmon };
+const CRGB PLT_YELLOWS[4] = { CRGB::Goldenrod, CRGB::Gold, CRGB::Yellow, CRGB::Khaki };
+const CRGB PLT_GREENS[4] = { CRGB::DarkGreen, CRGB::ForestGreen, CRGB::Green, CRGB::LightGreen };
+const CRGB PLT_TEALS[4] = { CRGB::LightSeaGreen, CRGB::Turquoise, CRGB::MediumAquamarine, CRGB::Aquamarine };
+const CRGB PLT_LT_BLUES[4] = { CRGB::CornflowerBlue, CRGB::DodgerBlue, CRGB::DeepSkyBlue, CRGB::LightSkyBlue };
+const CRGB PLT_DK_BLUES[4] = { CRGB::SteelBlue, CRGB::RoyalBlue, CRGB::Blue, CRGB::LightSteelBlue };
+const CRGB PLT_PURPLES[4] = { CRGB::DarkViolet, CRGB::Amethyst, CRGB::MediumPurple, CRGB::Plum };
+const CRGB PLT_WHITES[4] = { CRGB::Silver, CRGB::Gainsboro, CRGB::WhiteSmoke, CRGB::White };
+const CRGB COLORS[10][4] = {
+  PLT_PINKS,
+  PLT_REDS,
+  PLT_ORANGES,
+  PLT_YELLOWS,
+  PLT_GREENS,
+  PLT_TEALS,
+  PLT_LT_BLUES,
+  PLT_DK_BLUES,
+  PLT_PURPLES,
+  PLT_WHITES
+};
+CRGBPalette16 currentPalette;
 
 // setup sets everything up! \o/
 void setup() {
@@ -171,6 +196,7 @@ bool success = false;
 void loop() {
   //process any serial input
   handleDebug();
+  static uint8_t startIndex = 0;
 
   //check for any received packets
   if (radio.receiveDone()) {
@@ -221,7 +247,7 @@ void loop() {
     if (NUM_NODES == 0) {
       // TODO transmit to myself just to get some packets out there?
       Serial.println("No nodes to transmit to! Transmitting to myself");
-      radio.sendWithRetry(NODEID, payload, 1);
+      radio.sendWithRetry(NODEID, PAYLOAD, 1);
     }
     // Transmit to all the nodes I know about
     for (uint8_t i = 0; i < NUM_NODES; i++) {
@@ -230,7 +256,7 @@ void loop() {
       Serial.print(" sending to: ");
       Serial.println(XMIT[i].nodeID, DEC);
       // The first time will fail;
-      if (radio.sendWithRetry(XMIT[i].nodeID, payload, 1)) {
+      if (radio.sendWithRetry(XMIT[i].nodeID, PAYLOAD, 1)) {
         Serial.println(" ok!");
         success = true;
       } else {
@@ -263,13 +289,28 @@ void loop() {
       }
     }
     NUM_NODES -= pruned;
-  }
 
-  // And now reflect the effects of whatever we received during the receive phase
-  if (success) {
-    fill_solid(leds, NUM_LEDS, CRGB::Green);
-  } else {
-    fill_solid(leds, NUM_LEDS, CRGB::Red);
+    // And update the colors?
+    CRGB miniPalette[4] = COLORS[NODEID-1];
+    currentPalette = CRGBPalette16(
+      miniPalette[0], miniPalette[0], miniPalette[0], miniPalette[0],
+      miniPalette[1], miniPalette[1], miniPalette[1], miniPalette[1],
+      miniPalette[2], miniPalette[2], miniPalette[2], miniPalette[2],
+      miniPalette[3], miniPalette[3], miniPalette[3], miniPalette[3]
+    );
   }
+  FillLEDsFromPaletteColors(startIndex);
+  // And now reflect the effects of whatever we received during the receive phase
   FastLED.show(); // Power managed display
+  FastLED.delay(1000/100); // update 100 times a second, apparently
+  startIndex++;
+}
+
+void FillLEDsFromPaletteColors(uint8_t colorIndex) {
+  uint8_t brightness = 255;
+
+  for(uint8_t i = 0; i < NUM_LEDS; i++) {
+    leds[i] = ColorFromPalette(currentPalette, colorIndex, brightness, NOBLEND);
+    colorIndex += 3;
+  }
 }
