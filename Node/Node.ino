@@ -78,7 +78,7 @@ struct CRGB leds[NUM_LEDS]; // Initialize our LED array.
 // CUBE-SPECIFIC STUFF
 const char PAYLOAD[] = "."; // it really doesn't matter what the actual payload is, we're all just broadcasting into the ether
 typedef struct {
-  uint8_t nodeID;
+  int8_t nodeID;
   uint8_t ticks;
 } NodeRecord;
 uint8_t DEFAULT_TICKS = 10;
@@ -274,7 +274,7 @@ void loop() {
         for (uint8_t j = i; j < NUM_NODES; j++) {
           XMIT[j-1] = XMIT[j];
         }
-        XMIT[NUM_NODES-1] = {0,0};
+        XMIT[NUM_NODES-1] = {-1,0};
 
         bool anyLeft = false;
         for (uint8_t j = 1; j < NUM_NODES; j++) {
@@ -290,14 +290,17 @@ void loop() {
     }
     NUM_NODES -= pruned;
 
-    // And update the colors?
-    CRGB miniPalette[4] = COLORS[NODEID-1];
-    currentPalette = CRGBPalette16(
-      miniPalette[0], miniPalette[0], miniPalette[0], miniPalette[0],
-      miniPalette[1], miniPalette[1], miniPalette[1], miniPalette[1],
-      miniPalette[2], miniPalette[2], miniPalette[2], miniPalette[2],
-      miniPalette[3], miniPalette[3], miniPalette[3], miniPalette[3]
-    );
+    // So we know there are NUM_NODES other nodes and 1 of me, which gives us
+    // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
+    CRGB genPalette[16];
+    for (uint8_t i = 0; i < 16; i++) {
+      if (i % (NUM_NODES+1) == 0) {
+        genPalette[i] = COLORS[NODEID][i%4];
+      } else {
+        genPalette[i] = COLORS[XMIT[i%NUM_NODES].nodeID][i%4];
+      }
+    }
+    currentPalette = CRGBPalette16(genPalette);
   }
   FillLEDsFromPaletteColors(startIndex);
   // And now reflect the effects of whatever we received during the receive phase
@@ -310,7 +313,7 @@ void FillLEDsFromPaletteColors(uint8_t colorIndex) {
   uint8_t brightness = 255;
 
   for(uint8_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = ColorFromPalette(currentPalette, colorIndex, brightness, NOBLEND);
+    leds[i] = ColorFromPalette(currentPalette, colorIndex, brightness, LINEARBLEND);
     colorIndex += 3;
   }
 }
