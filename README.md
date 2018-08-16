@@ -1,6 +1,9 @@
 # cubes
 
-
+**TODO**:
+- [ ] incorporate signal strength into the decay?
+- [ ] actually introduce genome concept
+- [ ] reconsider color palette?
 
 ## random shit around adding LEDs
 

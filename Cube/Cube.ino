@@ -30,6 +30,9 @@
 #include <SPIFlash.h>      // get it here: https://www.github.com/lowpowerlab/spiflash
 #include <SPI.h>           // included with Arduino IDE install (www.arduino.cc)
 
+// Cube-related stuff
+#include "Palette.h"
+
 //*********************************************************************************************
 //************ IMPORTANT SETTINGS - YOU MUST CHANGE/CONFIGURE TO FIT YOUR HARDWARE ************
 //*********************************************************************************************
@@ -85,39 +88,16 @@ uint8_t DEFAULT_TICKS = 10;
 uint8_t NUM_NODES = 0;
 NodeRecord XMIT[10]; // initialize to send to self at first; relies on promiscuousMode to pick up other nodes' broadcasts
 
-// COLORS (10 or fewer)
-const CRGB PLT_PINKS[4] = { CRGB::DeepPink, CRGB::HotPink, CRGB::LightPink, CRGB::Pink  };
-const CRGB PLT_REDS[4] = { CRGB::DarkRed, CRGB::IndianRed, CRGB::Red, CRGB::OrangeRed };
-const CRGB PLT_ORANGES[4] = { CRGB::DarkOrange, CRGB::Orange, CRGB::Coral, CRGB::LightSalmon };
-const CRGB PLT_YELLOWS[4] = { CRGB::Goldenrod, CRGB::Gold, CRGB::Yellow, CRGB::Khaki };
-const CRGB PLT_GREENS[4] = { CRGB::DarkGreen, CRGB::ForestGreen, CRGB::Green, CRGB::LightGreen };
-const CRGB PLT_TEALS[4] = { CRGB::LightSeaGreen, CRGB::Turquoise, CRGB::MediumAquamarine, CRGB::Aquamarine };
-const CRGB PLT_LT_BLUES[4] = { CRGB::CornflowerBlue, CRGB::DodgerBlue, CRGB::DeepSkyBlue, CRGB::LightSkyBlue };
-const CRGB PLT_DK_BLUES[4] = { CRGB::SteelBlue, CRGB::RoyalBlue, CRGB::Blue, CRGB::LightSteelBlue };
-const CRGB PLT_PURPLES[4] = { CRGB::DarkViolet, CRGB::Amethyst, CRGB::MediumPurple, CRGB::Plum };
-const CRGB PLT_WHITES[4] = { CRGB::Silver, CRGB::Gainsboro, CRGB::WhiteSmoke, CRGB::White };
-const CRGB COLORS[10][4] = {
-  PLT_PINKS,
-  PLT_REDS,
-  PLT_ORANGES,
-  PLT_YELLOWS,
-  PLT_GREENS,
-  PLT_TEALS,
-  PLT_LT_BLUES,
-  PLT_DK_BLUES,
-  PLT_PURPLES,
-  PLT_WHITES
-};
 CRGBPalette16 currentPalette;
 
 // setup sets everything up! \o/
 void setup() {
-  Serial.begin(115200); // I think this is overridden by an `avrdude` argument anyway
+  Serial.begin(BAUD);
   delay(1000);          // Soft startup to ease the flow of electrons.
 
   FastLED.addLeds<NEOPIXEL, LED_DT>(leds, NUM_LEDS);
   FastLED.setBrightness(50);
-  set_max_power_in_volts_and_milliamps(5, 500); // FastLED Power management set at 5V, 500mA.
+  set_max_power_in_volts_and_milliamps(5, 100); // FastLED Power management set at 5V, 500mA.
 
   radio.initialize(FREQUENCY,NODEID,NETWORKID);
   #ifdef IS_RFM69HW_HCW
@@ -203,7 +183,7 @@ void loop() {
     Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
     for (byte i = 0; i < radio.DATALEN; i++)
       Serial.print((char)radio.DATA[i]);
-    Serial.print("   [RX_RSSI:");Serial.print(radio.RSSI);Serial.print("]");
+    Serial.print("   [RX_RSSI:");Serial.print(radio.readRSSI());Serial.println("]");
 
     // Find XMIT record, if appropriate
     uint8_t idx = 0;
@@ -232,15 +212,15 @@ void loop() {
     Serial.println(";");
 
     if (radio.ACKRequested()) {
-      uint8_t theNodeID = radio.SENDERID;
       radio.sendACK();
       Serial.print(" - ACK sent to ");
-      Serial.println(theNodeID, DEC);
+      Serial.println(radio.SENDERID, DEC);
     }
     Serial.println();
   }
 
-  int currPeriod = millis()/TRANSMITPERIOD;
+  static unsigned long currPeriod;
+  currPeriod = millis()/TRANSMITPERIOD;
   if (currPeriod != lastPeriod) {
     lastPeriod=currPeriod;
 
@@ -257,10 +237,8 @@ void loop() {
       Serial.println(XMIT[i].nodeID, DEC);
       // The first time will fail;
       if (radio.sendWithRetry(XMIT[i].nodeID, PAYLOAD, 1)) {
-        Serial.println(" ok!");
         success = true;
       } else {
-        Serial.println(" failed...");
         success = false;
       }
       XMIT[i].ticks--;
@@ -292,7 +270,7 @@ void loop() {
 
     // So we know there are NUM_NODES other nodes and 1 of me, which gives us
     // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
-    CRGB genPalette[16];
+    static CRGB genPalette[16];
     for (uint8_t i = 0; i < 16; i++) {
       if (i % (NUM_NODES+1) == 0) {
         genPalette[i] = COLORS[NODEID][i%4];
@@ -310,10 +288,8 @@ void loop() {
 }
 
 void FillLEDsFromPaletteColors(uint8_t colorIndex) {
-  uint8_t brightness = 255;
-
   for(uint8_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = ColorFromPalette(currentPalette, colorIndex, brightness, LINEARBLEND);
-    colorIndex += 3;
+    leds[i] = ColorFromPalette(currentPalette, colorIndex, 255, LINEARBLEND);
+    colorIndex += 1;
   }
 }
