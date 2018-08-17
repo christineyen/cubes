@@ -171,6 +171,31 @@ void handleDebug() {
   }
 }
 
+uint8_t compact(NodeRecord arr[], uint8_t numNodes) {
+  uint8_t pruned = 0;
+  for (uint8_t i = 0; i < numNodes; i++) {
+    if (arr[i].ticks == 0) {
+      pruned++;
+      for (uint8_t j = i; j < NUM_NODES; j++) {
+        arr[j-1] = arr[j];
+      }
+      arr[numNodes-1] = {-1,0};
+
+      bool anyLeft = false;
+      for (uint8_t j = 1; j < numNodes; j++) {
+        if (arr[j].ticks > 0) {
+          anyLeft = true;
+          break;
+        }
+      }
+      if (anyLeft) {
+        i--; // we just compacted, check the same position
+      }
+    }
+  }
+  return pruned;
+}
+
 long lastPeriod = 0;
 bool success = false;
 void loop() {
@@ -245,34 +270,13 @@ void loop() {
     }
 
     // ... now let's compact that list if we can, in case any nodes have decayed out
-    uint8_t pruned = 0;
-    for (uint8_t i = 0; i < NUM_NODES; i++) {
-      if (XMIT[i].ticks == 0) {
-        pruned++;
-        for (uint8_t j = i; j < NUM_NODES; j++) {
-          XMIT[j-1] = XMIT[j];
-        }
-        XMIT[NUM_NODES-1] = {-1,0};
-
-        bool anyLeft = false;
-        for (uint8_t j = 1; j < NUM_NODES; j++) {
-          if (XMIT[j].ticks > 0) {
-            anyLeft = true;
-            break;
-          }
-        }
-        if (anyLeft) {
-          i--; // we just compacted, check the same position
-        }
-      }
-    }
-    NUM_NODES -= pruned;
+    NUM_NODES -= compact(XMIT, NUM_NODES);
 
     // So we know there are NUM_NODES other nodes and 1 of me, which gives us
     // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
     static CRGB genPalette[16];
     for (uint8_t i = 0; i < 16; i++) {
-      if (i % (NUM_NODES+1) == 0) {
+      if (i % (NUM_NODES+1) < 2) {
         genPalette[i] = COLORS[NODEID][i%4];
       } else {
         genPalette[i] = COLORS[XMIT[i%NUM_NODES].nodeID][i%4];

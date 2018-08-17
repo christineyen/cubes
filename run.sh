@@ -36,14 +36,14 @@ run_sketch() { # takes three args: SKETCH, NODEID, PORT
     -Uflash:w:$BUILD_PATH/$SKETCH.ino.hex:i
 }
 
-echo "======= Building Cube... on $PORT1"
-#NODEID=$(( $RANDOM % 256 ))
-NODEID=2
-run_sketch "Cube" $NODEID $PORT1
-screen -dmS alpha /dev/$PORT1 57600
+#echo "======= Building Cube... on $PORT1"
+##NODEID=$(( $RANDOM % 256 ))
+#NODEID=2
+#run_sketch "Cube" $NODEID $PORT1
+##screen -dmS alpha /dev/$PORT1 57600
 
 echo "======= Building Cube... on $PORT2"
-NODEID=7
+NODEID=9
 run_sketch "Cube" $NODEID $PORT2
-screen -dmS beta /dev/$PORT2 57600
+#screen -dmS beta /dev/$PORT2 57600
 echo "reattach screens 'alpha' or 'beta'"
