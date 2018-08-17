@@ -198,13 +198,24 @@ uint8_t compact(NodeRecord arr[], uint8_t numNodes) {
 
 long lastPeriod = 0;
 bool success = false;
+bool gotData = false;
 void loop() {
   //process any serial input
   handleDebug();
   static uint8_t startIndex = 0;
 
+  static unsigned long currPeriod;
+  currPeriod = millis()/TRANSMITPERIOD;
+  if (currPeriod != lastPeriod) {
+    lastPeriod=currPeriod;
+
+    radio.sendWithRetry(NODEID, PAYLOAD, 1);
+    gotData = false;
+  }
+
   //check for any received packets
   if (radio.receiveDone()) {
+    gotData = true;
     Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
     for (byte i = 0; i < radio.DATALEN; i++)
       Serial.print((char)radio.DATA[i]);
@@ -244,47 +255,13 @@ void loop() {
     Serial.println();
   }
 
-  static unsigned long currPeriod;
-  currPeriod = millis()/TRANSMITPERIOD;
-  if (currPeriod != lastPeriod) {
-    lastPeriod=currPeriod;
-
-    if (NUM_NODES == 0) {
-      // TODO transmit to myself just to get some packets out there?
-      Serial.println("No nodes to transmit to! Transmitting to myself");
-      radio.sendWithRetry(NODEID, PAYLOAD, 1);
+  for (uint8_t i = 0; i < 10; i++) {
+    if (gotData) {
+      leds[i] = CRGB::Green;
+    } else {
+      leds[i] = CRGB::Red;
     }
-    // Transmit to all the nodes I know about
-    for (uint8_t i = 0; i < NUM_NODES; i++) {
-      Serial.print("... Node ");
-      Serial.print(NODEID, DEC);
-      Serial.print(" sending to: ");
-      Serial.println(XMIT[i].nodeID, DEC);
-      // The first time will fail;
-      if (radio.sendWithRetry(XMIT[i].nodeID, PAYLOAD, 1)) {
-        success = true;
-      } else {
-        success = false;
-      }
-      XMIT[i].ticks--;
-    }
-
-    // ... now let's compact that list if we can, in case any nodes have decayed out
-    NUM_NODES -= compact(XMIT, NUM_NODES);
-
-    // So we know there are NUM_NODES other nodes and 1 of me, which gives us
-    // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
-    static CRGB genPalette[16];
-    for (uint8_t i = 0; i < 16; i++) {
-      if (i % (NUM_NODES+1) < 2) {
-        genPalette[i] = COLORS[NODEID][i%4];
-      } else {
-        genPalette[i] = COLORS[XMIT[i%NUM_NODES].nodeID][i%4];
-      }
-    }
-    currentPalette = CRGBPalette16(genPalette);
   }
-  FillLEDsFromPaletteColors(startIndex);
   // And now reflect the effects of whatever we received during the receive phase
   FastLED.show(); // Power managed display
   FastLED.delay(1000/100); // update 100 times a second, apparently
