@@ -217,6 +217,7 @@ void loop() {
   handleDebug();
   static uint8_t startIndex = 0;
   static int16_t rssi = 0;
+  static uint8_t stretch = 0;
 
   //check for any received packets
   if (radio.receiveDone()) {
@@ -225,11 +226,9 @@ void loop() {
       Serial.print((char)radio.DATA[i]);
     rssi = radio.readRSSI();
     Serial.print("   [RX_RSSI:");Serial.print(rssi, DEC);Serial.print("] ");
-    if (rssi < RSSITHRESHOLD) {
+    if (rssi < RSSITHRESHOLD || radio.SENDERID > 10) { // Skip (occasional) garbage?
       Serial.println("skipping");
     } else {
-      Serial.println("accepting");
-
       // Find XMIT record, if appropriate
       uint8_t idx = 0;
       for (;idx < NUM_NODES; idx++) {
@@ -245,12 +244,6 @@ void loop() {
         // reset the number of ticks
         XMIT[idx].ticks = DEFAULT_TICKS;
       }
-
-      if (radio.ACKRequested()) {
-        radio.sendACK();
-        Serial.print(" - ACK sent to ");
-        Serial.println(radio.SENDERID, DEC);
-      }
       Serial.println();
     }
   }
@@ -261,7 +254,6 @@ void loop() {
     lastPeriod=currPeriod;
 
     if (NUM_NODES == 0) {
-      // TODO transmit to myself just to get some packets out there?
       Serial.println("No nodes to transmit to! Transmitting to myself");
       radio.sendWithRetry(NODEID, PAYLOAD, 1);
     }
@@ -296,26 +288,28 @@ void loop() {
     // So we know there are NUM_NODES other nodes and 1 of me, which gives us
     // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
     static CRGB genPalette[16];
+    stretch = 16 / (NUM_NODES + 1);
     for (uint8_t i = 0; i < 16; i++) {
-      if (i % (NUM_NODES+1) == 0) {
-        genPalette[i] = COLORS[NODEID][i%4];
+      if (i/stretch < NUM_NODES) {
+        genPalette[i] = COLORS[XMIT[i/stretch].nodeID][i%4];
       } else {
-        genPalette[i] = COLORS[XMIT[i%NUM_NODES].nodeID][i%4];
+        genPalette[i] = COLORS[NODEID][i%4];
       }
     }
     currentPalette = CRGBPalette16(genPalette);
   }
 
-  FillLEDsFromPaletteColors(startIndex);
-  // And now reflect the effects of whatever we received during the receive phase
-  FastLED.show(); // Power managed display
-  FastLED.delay(1000/100); // update 100 times a second, apparently
-  startIndex++;
-}
-
-void FillLEDsFromPaletteColors(uint8_t colorIndex) {
-  for(uint8_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = ColorFromPalette(currentPalette, colorIndex, 255, LINEARBLEND);
-    colorIndex += 1;
+  EVERY_N_MILLISECONDS(10) {
+    fill_palette(leds, // LEDs aka CRGB *
+      NUM_LEDS,        // length of LEDs
+      startIndex,      // startIndex - if constant, then motion will stay constant
+      3, // higher = higher frequency
+      /*RainbowColors_p, // useful for debugging*/
+      currentPalette,
+      255, // max brightness
+      LINEARBLEND);
+    // And now reflect the effects of whatever we received during the receive phase
+    FastLED.show(); // Power managed display
+    startIndex++;
   }
 }
