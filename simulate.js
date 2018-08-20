@@ -49,11 +49,12 @@ function setup() {
   strip.setBrightness(BRIGHTNESS);
   strip.begin();
 
-  for (var i = 0; i < 16; i++) {
-    if (i % (NUM_NODES()+1) == 0) {
-      palette[i] = COLORS[NODEID][i%4];
+  const stretch = Math.floor(NUM_LEDS / (NUM_NODES() + 1));
+  for (var i = 0; i < NUM_LEDS; i++) {
+    if (Math.floor(i / stretch) < NUM_NODES()) {
+      palette[i] = COLORS[XMIT[Math.floor(i / stretch)].nodeID][0];
     } else {
-      palette[i] = COLORS[XMIT[i%NUM_NODES()].nodeID][i%4];
+      palette[i] = COLORS[NODEID][0];
     }
   }
 }
@@ -63,12 +64,12 @@ let startIndex = 0;
 function loop() {
     fillLEDsFromPaletteColors(startIndex);
     strip.show();
-    delay(1000);
+    delay(500);
     startIndex++;
 }
 
 function fillLEDsFromPaletteColors(colorIndex) {
-    for (var i = 0; i < 16; i++) {
+    for (var i = 0; i < NUM_LEDS; i++) {
       strip.setPixelColor(i, palette[colorIndex%palette.length]);
       colorIndex += 1; // this is 3 in arduino-world because... the Palette is actually 256 items long
     }
