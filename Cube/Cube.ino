@@ -26,7 +26,7 @@
 // **********************************************************************************
 #include "FastLED.h"       // FastLED library. Please use the latest development version.
 #include <RFM69.h>         // get it here: https://www.github.com/lowpowerlab/rfm69
-#include <RFM69_ATC.h>     // get it here: https://www.github.com/lowpowerlab/rfm69
+/*#include <RFM69_ATC.h>     // get it here: https://www.github.com/lowpowerlab/rfm69*/
 #include <SPIFlash.h>      // get it here: https://www.github.com/lowpowerlab/spiflash
 #include <SPI.h>           // included with Arduino IDE install (www.arduino.cc)
 
@@ -49,8 +49,8 @@
 //By reducing TX power even a little you save a significant amount of battery power
 //This setting enables this gateway to work with remote nodes that have ATC enabled to
 //dial their power down to only the required level (ATC_RSSI)
-#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
-#define ATC_RSSI      -80
+/*#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL*/
+/*#define ATC_RSSI      -80*/
 //*********************************************************************************************
 
 #ifdef __AVR_ATmega1284P__
@@ -62,6 +62,7 @@
 #endif
 
 int TRANSMITPERIOD = 500; //transmit a packet to gateway so often (in ms)
+int16_t RSSITHRESHOLD = -100;
 SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 
 #ifdef ENABLE_ATC
@@ -107,6 +108,7 @@ void setup() {
   radio.promiscuous(true);
   //radio.setFrequency(919000000); //set frequency to some custom frequency
 
+  radio.setPowerLevel(1);
   //Auto Transmission Control - dials down transmit power to save battery (-100 is the noise floor, -90 is still pretty good)
   //For indoor nodes that are pretty static and at pretty stable temperatures (like a MotionMote) -90dBm is quite safe
   //For more variable nodes that can expect to move or experience larger temp drifts a lower margin like -70 to -80 would probably be better
@@ -134,6 +136,18 @@ void handleDebug() {
     Serial.print("\nChanging delay to ");
     Serial.print(TRANSMITPERIOD);
     Serial.println("ms\n");
+  }
+  if (input == 'j') {
+    RSSITHRESHOLD--;
+    Serial.print("\nDecreasing RSSI threshold to ");
+    Serial.print(RSSITHRESHOLD);
+    Serial.println(";\n");
+  }
+  if (input == 'k') {
+    RSSITHRESHOLD++;
+    Serial.print("\nIncreasing RSSI threshold to ");
+    Serial.print(RSSITHRESHOLD);
+    Serial.println(";\n");
   }
   if (input == 'r') { //d=dump register values
     radio.readAllRegs();
@@ -202,46 +216,43 @@ void loop() {
   //process any serial input
   handleDebug();
   static uint8_t startIndex = 0;
+  static int16_t rssi = 0;
 
   //check for any received packets
   if (radio.receiveDone()) {
     Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
     for (byte i = 0; i < radio.DATALEN; i++)
       Serial.print((char)radio.DATA[i]);
-    Serial.print("   [RX_RSSI:");Serial.print(radio.readRSSI());Serial.println("]");
-
-    // Find XMIT record, if appropriate
-    uint8_t idx = 0;
-    for (;idx < NUM_NODES; idx++) {
-      if (XMIT[idx].nodeID == radio.SENDERID) {
-        break;
-      }
-    }
-    // at this point idx will either be the correct index or equal to NUM_NODES
-    if (idx == NUM_NODES) {
-      XMIT[idx] = { radio.SENDERID, DEFAULT_TICKS };
-      NUM_NODES++;
+    rssi = radio.readRSSI();
+    Serial.print("   [RX_RSSI:");Serial.print(rssi, DEC);Serial.print("] ");
+    if (rssi < RSSITHRESHOLD) {
+      Serial.println("skipping");
     } else {
-      // reset the number of ticks
-      XMIT[idx].ticks = DEFAULT_TICKS;
-    }
+      Serial.println("accepting");
 
-    // Output diagnostics
-    Serial.print("XMIT NODES: ");
-    for (uint8_t i = 0; i < NUM_NODES; i++) {
-      Serial.print(XMIT[i].nodeID, DEC);
-      Serial.print(":");
-      Serial.print(XMIT[i].ticks, DEC);
-      Serial.print(" ");
-    }
-    Serial.println(";");
+      // Find XMIT record, if appropriate
+      uint8_t idx = 0;
+      for (;idx < NUM_NODES; idx++) {
+        if (XMIT[idx].nodeID == radio.SENDERID) {
+          break;
+        }
+      }
+      // at this point idx will either be the correct index or equal to NUM_NODES
+      if (idx == NUM_NODES) {
+        XMIT[idx] = { radio.SENDERID, DEFAULT_TICKS };
+        NUM_NODES++;
+      } else {
+        // reset the number of ticks
+        XMIT[idx].ticks = DEFAULT_TICKS;
+      }
 
-    if (radio.ACKRequested()) {
-      radio.sendACK();
-      Serial.print(" - ACK sent to ");
-      Serial.println(radio.SENDERID, DEC);
+      if (radio.ACKRequested()) {
+        radio.sendACK();
+        Serial.print(" - ACK sent to ");
+        Serial.println(radio.SENDERID, DEC);
+      }
+      Serial.println();
     }
-    Serial.println();
   }
 
   static unsigned long currPeriod;
@@ -272,6 +283,16 @@ void loop() {
     // ... now let's compact that list if we can, in case any nodes have decayed out
     NUM_NODES -= compact(XMIT, NUM_NODES);
 
+    // Output diagnostics
+    Serial.print("\n========= XMIT NODES: ");
+    for (uint8_t i = 0; i < NUM_NODES; i++) {
+      Serial.print(XMIT[i].nodeID, DEC);
+      Serial.print(":");
+      Serial.print(XMIT[i].ticks, DEC);
+      Serial.print(" ");
+    }
+    Serial.println("; ========\n");
+
     // So we know there are NUM_NODES other nodes and 1 of me, which gives us
     // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
     static CRGB genPalette[16];
@@ -284,6 +305,7 @@ void loop() {
     }
     currentPalette = CRGBPalette16(genPalette);
   }
+
   FillLEDsFromPaletteColors(startIndex);
   // And now reflect the effects of whatever we received during the receive phase
   FastLED.show(); // Power managed display
