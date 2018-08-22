@@ -26,7 +26,6 @@
 // **********************************************************************************
 #include "FastLED.h"       // FastLED library. Please use the latest development version.
 #include <RFM69.h>         // get it here: https://www.github.com/lowpowerlab/rfm69
-/*#include <RFM69_ATC.h>     // get it here: https://www.github.com/lowpowerlab/rfm69*/
 #include <SPIFlash.h>      // get it here: https://www.github.com/lowpowerlab/spiflash
 #include <SPI.h>           // included with Arduino IDE install (www.arduino.cc)
 
@@ -43,15 +42,6 @@
 //************* PREVIOUSLY IMPORTANT - PROVIDED ELSEWHERE *************************************
 //#define NODEID        2    //PROVIDED BY BUILD -- must be unique for each node on same network (range up to 254, 255 is used for broadcast)
 //#define ENCRYPTKEY    "yougetmeYAAAY" //exactly the same 16 characters/bytes on all nodes! -- seems buggy
-//*********************************************************************************************
-//Auto Transmission Control - dials down transmit power to save battery
-//Usually you do not need to always transmit at max output power
-//By reducing TX power even a little you save a significant amount of battery power
-//This setting enables this gateway to work with remote nodes that have ATC enabled to
-//dial their power down to only the required level (ATC_RSSI)
-/*#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL*/
-/*#define ATC_RSSI      -80*/
-//*********************************************************************************************
 
 #ifdef __AVR_ATmega1284P__
   #define LED           15 // Moteino MEGAs have LEDs on D15
@@ -62,14 +52,9 @@
 #endif
 
 int TRANSMITPERIOD = 500; //transmit a packet to gateway so often (in ms)
-int16_t RSSITHRESHOLD = -100;
+int16_t RSSITHRESHOLD = -40;
 SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
-
-#ifdef ENABLE_ATC
-  RFM69_ATC radio;
-#else
-  RFM69 radio;
-#endif
+RFM69 radio;
 
 // FastLED/Neopixel constants
 #define LED_DT 6            // Data pin to connect to the strip.
@@ -109,15 +94,7 @@ void setup() {
   radio.promiscuous(true);
   //radio.setFrequency(919000000); //set frequency to some custom frequency
 
-  radio.setPowerLevel(1);
-  //Auto Transmission Control - dials down transmit power to save battery (-100 is the noise floor, -90 is still pretty good)
-  //For indoor nodes that are pretty static and at pretty stable temperatures (like a MotionMote) -90dBm is quite safe
-  //For more variable nodes that can expect to move or experience larger temp drifts a lower margin like -70 to -80 would probably be better
-  //Always test your ATC mote in the edge cases in your own environment to ensure ATC will perform as you expect
-  #ifdef ENABLE_ATC
-    Serial.println("RFM69_ATC Enabled (Auto Transmission Control)\n");
-    radio.enableAutoPower(ATC_RSSI);
-  #endif
+  radio.setPowerLevel(0);
 
   char buff[50];
   sprintf(buff, "\nTransmitting at %d Mhz...", FREQUENCY==RF69_433MHZ ? 433 : FREQUENCY==RF69_868MHZ ? 868 : 915);
@@ -221,20 +198,17 @@ bool checkPayload(char radioPayload[]) {
 }
 
 long lastPeriod = 0;
-bool success = false;
 void loop() {
   //process any serial input
   handleDebug();
   static uint8_t startIndex = 0;
-  static int16_t rssi = 0;
   static uint8_t stretch = 0;
 
   //check for any received packets
   if (radio.receiveDone()) {
     Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
-    rssi = radio.readRSSI();
-    Serial.print("   [RX_RSSI:");Serial.print(rssi, DEC);Serial.println("] ");
-    if (rssi < RSSITHRESHOLD ||
+    Serial.print("   [RX_RSSI:");Serial.print(radio.RSSI, DEC);Serial.println("] ");
+    if (radio.RSSI < RSSITHRESHOLD ||
         (sizeof(PAYLOAD) != radio.DATALEN) ||
         !checkPayload(radio.DATA)) {
       Serial.println("skipping"); // Skip (occasional) garbage?

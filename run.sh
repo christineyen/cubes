@@ -38,12 +38,12 @@ run_sketch() { # takes three args: SKETCH, NODEID, PORT
 
 echo "======= Building Cube... on $PORT1"
 #NODEID=$(( $RANDOM % 256 ))
-NODEID=2
+NODEID=1
 run_sketch "Cube" $NODEID $PORT1
 screen -dmS alpha /dev/$PORT1 57600
 
 echo "======= Building Cube... on $PORT2"
-NODEID=5
+NODEID=8
 run_sketch "Cube" $NODEID $PORT2
 screen -dmS beta /dev/$PORT2 57600
 echo "reattach screens 'alpha' or 'beta'"

@@ -6,6 +6,7 @@
 - [ ] actually introduce genome concept
 - [ ] reconsider color palette?
 - [ ] it'd be nice if the palette adding/removing a color would be less abrupt
+- [ ] rolling average?
 
 ## random shit around adding LEDs
 
@@ -29,3 +30,12 @@ void setup() {
    FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
 }
 ```
+
+## what we've learned about measuring RSSI
+
+at `0` power:
+- ~1ft: -30
+- ~2ft: -38 ? (antennae position is very sensitive)
+- ~3ft: -33
+- ~6ft: -46
+- ~10ft: -56
