@@ -85,7 +85,7 @@ typedef struct {
   int8_t nodeID;
   uint8_t ticks;
 } NodeRecord;
-uint8_t DEFAULT_TICKS = 10;
+const uint8_t DEFAULT_TICKS = 20;
 uint8_t NUM_NODES = 0;
 NodeRecord XMIT[10]; // initialize to send to self at first; relies on promiscuousMode to pick up other nodes' broadcasts
 
@@ -254,25 +254,14 @@ void loop() {
     lastPeriod=currPeriod;
 
     if (NUM_NODES == 0) {
-      Serial.println("No nodes to transmit to! Transmitting to myself");
-      radio.sendWithRetry(NODEID, PAYLOAD, 1);
+      Serial.println("No nodes to transmit to!");
     }
-    // Transmit to all the nodes I know about
+    radio.send(NODEID, PAYLOAD, 1);
+
+    // decay nodes and compact the list to remove nodes if we can!
     for (uint8_t i = 0; i < NUM_NODES; i++) {
-      Serial.print("... Node ");
-      Serial.print(NODEID, DEC);
-      Serial.print(" sending to: ");
-      Serial.println(XMIT[i].nodeID, DEC);
-      // The first time will fail;
-      if (radio.sendWithRetry(XMIT[i].nodeID, PAYLOAD, 1)) {
-        success = true;
-      } else {
-        success = false;
-      }
       XMIT[i].ticks--;
     }
-
-    // ... now let's compact that list if we can, in case any nodes have decayed out
     NUM_NODES -= compact(XMIT, NUM_NODES);
 
     // Output diagnostics
