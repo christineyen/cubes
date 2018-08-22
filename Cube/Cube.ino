@@ -80,7 +80,8 @@ SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 struct CRGB leds[NUM_LEDS]; // Initialize our LED array.
 
 // CUBE-SPECIFIC STUFF
-const char PAYLOAD[] = "."; // it really doesn't matter what the actual payload is, we're all just broadcasting into the ether
+const char PAYLOAD[] = "4xth]jWt"; // security through obscurity!
+const uint8_t PAYLOAD_LEN = sizeof(PAYLOAD);
 typedef struct {
   int8_t nodeID;
   uint8_t ticks;
@@ -210,6 +211,15 @@ uint8_t compact(NodeRecord arr[], uint8_t numNodes) {
   return pruned;
 }
 
+bool checkPayload(char radioPayload[]) {
+  for (uint8_t i = 0; i < PAYLOAD_LEN; i++) {
+    if (PAYLOAD[i] != radioPayload[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 long lastPeriod = 0;
 bool success = false;
 void loop() {
@@ -222,12 +232,12 @@ void loop() {
   //check for any received packets
   if (radio.receiveDone()) {
     Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
-    for (byte i = 0; i < radio.DATALEN; i++)
-      Serial.print((char)radio.DATA[i]);
     rssi = radio.readRSSI();
-    Serial.print("   [RX_RSSI:");Serial.print(rssi, DEC);Serial.print("] ");
-    if (rssi < RSSITHRESHOLD || radio.SENDERID > 10) { // Skip (occasional) garbage?
-      Serial.println("skipping");
+    Serial.print("   [RX_RSSI:");Serial.print(rssi, DEC);Serial.println("] ");
+    if (rssi < RSSITHRESHOLD ||
+        (sizeof(PAYLOAD) != radio.DATALEN) ||
+        !checkPayload(radio.DATA)) {
+      Serial.println("skipping"); // Skip (occasional) garbage?
     } else {
       // Find XMIT record, if appropriate
       uint8_t idx = 0;
@@ -244,7 +254,6 @@ void loop() {
         // reset the number of ticks
         XMIT[idx].ticks = DEFAULT_TICKS;
       }
-      Serial.println();
     }
   }
 
@@ -256,7 +265,7 @@ void loop() {
     if (NUM_NODES == 0) {
       Serial.println("No nodes to transmit to!");
     }
-    radio.send(NODEID, PAYLOAD, 1);
+    radio.send(NODEID, PAYLOAD, PAYLOAD_LEN);
 
     // decay nodes and compact the list to remove nodes if we can!
     for (uint8_t i = 0; i < NUM_NODES; i++) {
