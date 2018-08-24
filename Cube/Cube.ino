@@ -260,13 +260,16 @@ void loop() {
     // So we know there are NUM_NODES other nodes and 1 of me, which gives us
     // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
     static CRGB genPalette[16];
+    static CHSV hsv;
     stretch = 16 / (NUM_NODES + 1);
     for (uint8_t i = 0; i < 16; i++) {
       if (i/stretch < NUM_NODES) {
-        genPalette[i] = COLORS[XMIT[i/stretch].nodeID][i%4];
+        hsv = COLORS[XMIT[i/stretch].nodeID];
       } else {
-        genPalette[i] = COLORS[NODEID][i%4];
+        hsv = COLORS[NODEID];
       }
+      hsv.sat = 191 + 64 * (float(i % 4) / 4);
+      genPalette[i] = hsv;
     }
     currentPalette = CRGBPalette16(genPalette);
   }
@@ -276,7 +279,6 @@ void loop() {
       NUM_LEDS,        // length of LEDs
       startIndex,      // startIndex - if constant, then motion will stay constant
       3, // higher = higher frequency
-      /*RainbowColors_p, // useful for debugging*/
       currentPalette,
       255, // max brightness
       LINEARBLEND);
