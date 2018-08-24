@@ -52,7 +52,7 @@
 #endif
 
 int TRANSMITPERIOD = 1000; //transmit a packet to gateway so often (in ms)
-int16_t RSSITHRESHOLD = -40;
+int16_t RSSITHRESHOLD = -50;
 SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 RFM69 radio;
 
@@ -176,12 +176,18 @@ void handleDebug() {
   }
 }
 
-// getColor helps us make sure we have a bit of texture for the many solid
-// colors we fetched
-CHSV getColor(uint8_t ledIdx, uint8_t nodeIdx) {
+// setPaletteColor helps us make sure we have a bit of texture for the many
+// solid colors we fetched
+//
+// It also offers a guardrail against IndexOutOfRange errors since we call this
+// in weird spots in a loop
+void setPaletteColor(uint8_t ledIdx, uint8_t nodeIdx) {
+  if (ledIdx >= 16) {
+    return;
+  }
   CHSV hsv = COLORS[nodeIdx];
   hsv.sat = 155 + 100 * (float(ledIdx % 4) / 4);
-  return hsv;
+  targetPalette[ledIdx] = hsv;
 }
 
 // updateCurrentPalette takes a look at the NodeRecords we know about, and for
@@ -216,20 +222,20 @@ void updateCurrentPalette() {
       // just start off with the NODEID color and essentially kick off another
       // iteration of the loop
       if (nodeIdx % numOtherColors == 0) {
-        targetPalette[i] = getColor(i, NODEID);
-        i++;
+        setPaletteColor(i, NODEID);
+        setPaletteColor(i + 1, NODEID);
+        i += 2;
       }
 
-      if (i < 16) {
-        // find the next XMIT node with a legit number of ticks
-        while (XMIT[nodeIdx % NUM_NODES].ticks <= 0) {
-          nodeIdx++;
-        }
-
-        targetPalette[i] = getColor(i, XMIT[nodeIdx % NUM_NODES].nodeID);
-        i++;
+      // find the next XMIT node with a legit number of ticks
+      while (XMIT[nodeIdx % NUM_NODES].ticks <= 0) {
         nodeIdx++;
       }
+
+      setPaletteColor(i, XMIT[nodeIdx % NUM_NODES].nodeID);
+      setPaletteColor(i + 1, XMIT[nodeIdx % NUM_NODES].nodeID);
+      i += 2;
+      nodeIdx++;
     }
   }
 
