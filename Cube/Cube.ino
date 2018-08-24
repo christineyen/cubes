@@ -51,7 +51,7 @@
   #define FLASH_SS      8 // and FLASH SS on D8
 #endif
 
-int TRANSMITPERIOD = 500; //transmit a packet to gateway so often (in ms)
+int TRANSMITPERIOD = 1000; //transmit a packet to gateway so often (in ms)
 int16_t RSSITHRESHOLD = -40;
 SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 RFM69 radio;
@@ -61,15 +61,20 @@ RFM69 radio;
 // #define LED_CK 11         // Clock pin for WS2801 or APA102.
 #define COLOR_ORDER GRB     // It's GRB for WS2812 and BGR for APA102.
 #define LED_TYPE WS2812     // Using APA102, WS2812, WS2801. Don't forget to change LEDS.addLeds.
-#define NUM_LEDS 20          // Number of LED's.
+#define NUM_LEDS 60         // Number of LED's.
 struct CRGB leds[NUM_LEDS]; // Initialize our LED array.
 
 // CUBE-SPECIFIC STUFF
 const char PAYLOAD[] = "4xth]jWt"; // security through obscurity!
 const uint8_t PAYLOAD_LEN = sizeof(PAYLOAD);
+const uint8_t RSSI_WINDOW_LEN = 10;
 typedef struct {
   int8_t nodeID;
   uint8_t ticks;
+
+  // Track moving window signal strength
+  int16_t rssis[RSSI_WINDOW_LEN];
+  uint8_t rssiPtr;
 } NodeRecord;
 const uint8_t DEFAULT_TICKS = 20;
 uint8_t NUM_NODES = 0;
@@ -193,6 +198,14 @@ bool checkPayload(char radioPayload[]) {
   return true;
 }
 
+int16_t avgRssis(int16_t rssis[]) {
+  long sum = 0;
+  for (uint8_t i = 0; i < RSSI_WINDOW_LEN; i++) {
+    sum += rssis[i];
+  }
+  return sum/RSSI_WINDOW_LEN;
+}
+
 long lastPeriod = 0;
 void loop() {
   //process any serial input
@@ -203,8 +216,7 @@ void loop() {
   if (radio.receiveDone()) {
     Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
     Serial.print("   [RX_RSSI:");Serial.print(radio.RSSI, DEC);Serial.println("] ");
-    if (radio.RSSI > RSSITHRESHOLD &&
-        (sizeof(PAYLOAD) == radio.DATALEN) &&
+    if ((sizeof(PAYLOAD) == radio.DATALEN) &&
         checkPayload(radio.DATA)) {
       // Find XMIT record, if appropriate
       uint8_t idx = 0;
@@ -215,11 +227,27 @@ void loop() {
       }
       // at this point idx will either be the correct index or equal to NUM_NODES
       if (idx == NUM_NODES) {
-        XMIT[idx] = { radio.SENDERID, DEFAULT_TICKS };
+        XMIT[idx] = {
+          radio.SENDERID,
+          DEFAULT_TICKS,
+          { radio.RSSI, -100, -100, -100, -100,
+            -100, -100, -100, -100, -100 },
+          1
+        };
         NUM_NODES++;
       } else {
-        // reset the number of ticks
-        XMIT[idx].ticks = DEFAULT_TICKS;
+        XMIT[idx].rssis[XMIT[idx].rssiPtr] = radio.RSSI;
+        XMIT[idx].rssiPtr++;
+        XMIT[idx].rssiPtr %= RSSI_WINDOW_LEN;
+
+        Serial.print("========== Ptr: ");
+        Serial.print(XMIT[idx].rssiPtr);
+        Serial.print(", Moving avg: ");
+        Serial.println(avgRssis(XMIT[idx].rssis), DEC);
+        if (avgRssis(XMIT[idx].rssis) > RSSITHRESHOLD) {
+          // reset the number of ticks
+          XMIT[idx].ticks = DEFAULT_TICKS;
+        }
       }
     }
   }

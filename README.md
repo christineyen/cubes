@@ -4,7 +4,7 @@
 - [x] incorporate signal strength into the decay?
 - [x] add some thing so that only other Cubes are considered valid
 - [x] reconsider color palette?
-- [ ] rolling average?
+- [x] rolling average?
 - [ ] reconsider how color palettes blend
 - [ ] actually introduce genome concept
 
