@@ -198,7 +198,6 @@ void loop() {
   //process any serial input
   handleDebug();
   static uint8_t startIndex = 0;
-  static uint8_t stretch = 0;
 
   //check for any received packets
   if (radio.receiveDone()) {
@@ -254,12 +253,11 @@ void loop() {
     // So we know there are NUM_NODES other nodes and 1 of me, which gives us
     // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
     static CHSV hsv;
-    stretch = 16 / (NUM_NODES + 1);
     for (uint8_t i = 0; i < 16; i++) {
-      if (i/stretch < NUM_NODES) {
-        hsv = COLORS[XMIT[i/stretch].nodeID];
-      } else {
+      if (i % (NUM_NODES + 1) == 0) {
         hsv = COLORS[NODEID];
+      } else {
+        hsv = COLORS[XMIT[i % NUM_NODES].nodeID];
       }
       hsv.sat = 155 + 100 * (float(i % 4) / 4);
       currentPalette[i] = hsv;
@@ -270,7 +268,7 @@ void loop() {
     fill_palette(leds, // LEDs aka CRGB *
       NUM_LEDS,        // length of LEDs
       startIndex,      // startIndex - if constant, then motion will stay constant
-      3, // higher = higher frequency
+      1, // higher = higher frequency
       currentPalette,
       255, // max brightness
       LINEARBLEND);
