@@ -95,10 +95,6 @@ void setup() {
   //radio.setFrequency(919000000); //set frequency to some custom frequency
 
   radio.setPowerLevel(0);
-
-  char buff[50];
-  sprintf(buff, "\nTransmitting at %d Mhz...", FREQUENCY==RF69_433MHZ ? 433 : FREQUENCY==RF69_868MHZ ? 868 : 915);
-  Serial.println(buff);
 }
 
 // handleDebug processes any serial input from within the loop() fn
@@ -117,13 +113,13 @@ void handleDebug() {
   }
   if (input == 'j') {
     RSSITHRESHOLD--;
-    Serial.print("\nDecreasing RSSI threshold to ");
+    Serial.print("\nRSSI threshold:");
     Serial.print(RSSITHRESHOLD);
     Serial.println(";\n");
   }
   if (input == 'k') {
     RSSITHRESHOLD++;
-    Serial.print("\nIncreasing RSSI threshold to ");
+    Serial.print("\nRSSI threshold:");
     Serial.print(RSSITHRESHOLD);
     Serial.println(";\n");
   }
@@ -208,11 +204,9 @@ void loop() {
   if (radio.receiveDone()) {
     Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
     Serial.print("   [RX_RSSI:");Serial.print(radio.RSSI, DEC);Serial.println("] ");
-    if (radio.RSSI < RSSITHRESHOLD ||
-        (sizeof(PAYLOAD) != radio.DATALEN) ||
-        !checkPayload(radio.DATA)) {
-      Serial.println("skipping"); // Skip (occasional) garbage?
-    } else {
+    if (radio.RSSI > RSSITHRESHOLD &&
+        (sizeof(PAYLOAD) == radio.DATALEN) &&
+        checkPayload(radio.DATA)) {
       // Find XMIT record, if appropriate
       uint8_t idx = 0;
       for (;idx < NUM_NODES; idx++) {
@@ -248,18 +242,17 @@ void loop() {
     NUM_NODES -= compact(XMIT, NUM_NODES);
 
     // Output diagnostics
-    Serial.print("\n========= XMIT NODES: ");
+    Serial.print("\n= XMIT NODES: ");
     for (uint8_t i = 0; i < NUM_NODES; i++) {
       Serial.print(XMIT[i].nodeID, DEC);
       Serial.print(":");
       Serial.print(XMIT[i].ticks, DEC);
       Serial.print(" ");
     }
-    Serial.println("; ========\n");
+    Serial.println(";\n");
 
     // So we know there are NUM_NODES other nodes and 1 of me, which gives us
     // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
-    static CRGB genPalette[16];
     static CHSV hsv;
     stretch = 16 / (NUM_NODES + 1);
     for (uint8_t i = 0; i < 16; i++) {
@@ -268,10 +261,9 @@ void loop() {
       } else {
         hsv = COLORS[NODEID];
       }
-      hsv.sat = 191 + 64 * (float(i % 4) / 4);
-      genPalette[i] = hsv;
+      hsv.sat = 155 + 100 * (float(i % 4) / 4);
+      currentPalette[i] = hsv;
     }
-    currentPalette = CRGBPalette16(genPalette);
   }
 
   EVERY_N_MILLISECONDS(10) {

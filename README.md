@@ -3,10 +3,10 @@
 **TODO**:
 - [x] incorporate signal strength into the decay?
 - [x] add some thing so that only other Cubes are considered valid
-- [ ] actually introduce genome concept
 - [x] reconsider color palette?
-- [ ] it'd be nice if the palette adding/removing a color would be less abrupt
 - [ ] rolling average?
+- [ ] reconsider how color palettes blend
+- [ ] actually introduce genome concept
 
 ## random shit around adding LEDs
 
