@@ -68,21 +68,33 @@ struct CRGB leds[NUM_LEDS]; // Initialize our LED array.
 const char PAYLOAD[] = "4xth]jWt"; // security through obscurity!
 const uint8_t PAYLOAD_LEN = sizeof(PAYLOAD);
 const uint8_t RSSI_WINDOW_LEN = 10;
+
+// NodeRecord tracks a Node that we've received a message from.
 typedef struct {
+  // unique identifier for the Node
   int8_t nodeID;
+  // ticks are the lifeblood of "include me in your color scheme!"
+  // once a NodeRecord runs out of ticks (which are decremented each
+  // TRANSMITPERIOD), it'll stop contributing to the color scheme.
   uint8_t ticks;
 
-  // Track moving window signal strength
+  // rssis + rssiPtr allow us to track a moving average of the signal strengths
+  // received by this Node from the NodeRecord.nodeID.
   int16_t rssis[RSSI_WINDOW_LEN];
   uint8_t rssiPtr;
 } NodeRecord;
-const uint8_t DEFAULT_TICKS = 20;
+const uint8_t DEFAULT_TICKS = 10;
 uint8_t NUM_NODES = 0;
-NodeRecord XMIT[10]; // initialize to send to self at first; relies on promiscuousMode to pick up other nodes' broadcasts
+// we rely on promiscuousMode to pick up other nodes' broadcasts, but we keep
+// track of which nodes we've seen (in order to maybe impact our colors)
+NodeRecord XMIT[10];
 
-CRGBPalette16 currentPalette;
+// currentPalette stores the **current state of the LEDs**
+CRGBPalette16 currentPalette(COLORS[NODEID]);
+// targetPalette represents the palette we're blending towards. At steady
+// state, currentPalette and targetPalette are identical
+CRGBPalette16 targetPalette;
 
-// setup sets everything up! \o/
 void setup() {
   Serial.begin(BAUD);
   delay(1000);          // Soft startup to ease the flow of electrons.
@@ -164,29 +176,72 @@ void handleDebug() {
   }
 }
 
-uint8_t compact(NodeRecord arr[], uint8_t numNodes) {
-  uint8_t pruned = 0;
-  for (uint8_t i = 0; i < numNodes; i++) {
-    if (arr[i].ticks == 0) {
-      pruned++;
-      for (uint8_t j = i; j < NUM_NODES; j++) {
-        arr[j-1] = arr[j];
-      }
-      arr[numNodes-1] = {-1,0};
+// getColor helps us make sure we have a bit of texture for the many solid
+// colors we fetched
+CHSV getColor(uint8_t ledIdx, uint8_t nodeIdx) {
+  CHSV hsv = COLORS[nodeIdx];
+  hsv.sat = 155 + 100 * (float(ledIdx % 4) / 4);
+  return hsv;
+}
 
-      bool anyLeft = false;
-      for (uint8_t j = 1; j < numNodes; j++) {
-        if (arr[j].ticks > 0) {
-          anyLeft = true;
-          break;
-        }
+// updateCurrentPalette takes a look at the NodeRecords we know about, and for
+// the ones with .ticks > 0, updates our palette to include colors from that
+// Node.
+void updateCurrentPalette() {
+  // Output diagnostics
+  Serial.print("\n= XMIT NODES: ");
+  for (uint8_t i = 0; i < NUM_NODES; i++) {
+    Serial.print(XMIT[i].nodeID, DEC);
+    Serial.print(":");
+    Serial.print(XMIT[i].ticks, DEC);
+    Serial.print(" ");
+  }
+  Serial.println(";\n");
+
+  uint8_t numOtherColors = 0;
+  for (uint8_t i = 0; i < NUM_NODES; i++) {
+    if (XMIT[i].ticks > 0) {
+      numOtherColors++;
+    }
+  }
+
+  // Update target palette based on the Nodes (this may be a duplicate, who
+  // knows)
+  uint8_t i = 0;
+  uint8_t nodeIdx = 0;
+  if (numOtherColors == 0) {
+    targetPalette = CRGBPalette16(COLORS[NODEID]);
+  } else {
+    while (i < 16) {
+      // just start off with the NODEID color and essentially kick off another
+      // iteration of the loop
+      if (nodeIdx % numOtherColors == 0) {
+        targetPalette[i] = getColor(i, NODEID);
+        i++;
       }
-      if (anyLeft) {
-        i--; // we just compacted, check the same position
+
+      if (i < 16) {
+        // find the next XMIT node with a legit number of ticks
+        while (XMIT[nodeIdx % NUM_NODES].ticks <= 0) {
+          nodeIdx++;
+        }
+
+        targetPalette[i] = getColor(i, XMIT[nodeIdx % NUM_NODES].nodeID);
+        i++;
+        nodeIdx++;
       }
     }
   }
-  return pruned;
+
+  // Crossfade current palette slowly toward the target palette
+  //
+  // Each time that nblendPaletteTowardPalette is called, small changes
+  // are made to currentPalette to bring it closer to matching targetPalette.
+  // You can control how many changes are made in each call:
+  //   - meaningful values are 1-48.  1=veeeeeeeery slow, 48=quickest
+  for (uint8_t i = 0; i < 10; i++) {
+    nblendPaletteTowardPalette(currentPalette, targetPalette, 48);
+  }
 }
 
 bool checkPayload(char radioPayload[]) {
@@ -229,7 +284,7 @@ void loop() {
       if (idx == NUM_NODES) {
         XMIT[idx] = {
           radio.SENDERID,
-          DEFAULT_TICKS,
+          0,
           { radio.RSSI, -100, -100, -100, -100,
             -100, -100, -100, -100, -100 },
           1
@@ -239,15 +294,6 @@ void loop() {
         XMIT[idx].rssis[XMIT[idx].rssiPtr] = radio.RSSI;
         XMIT[idx].rssiPtr++;
         XMIT[idx].rssiPtr %= RSSI_WINDOW_LEN;
-
-        Serial.print("========== Ptr: ");
-        Serial.print(XMIT[idx].rssiPtr);
-        Serial.print(", Moving avg: ");
-        Serial.println(avgRssis(XMIT[idx].rssis), DEC);
-        if (avgRssis(XMIT[idx].rssis) > RSSITHRESHOLD) {
-          // reset the number of ticks
-          XMIT[idx].ticks = DEFAULT_TICKS;
-        }
       }
     }
   }
@@ -262,34 +308,22 @@ void loop() {
     }
     radio.send(NODEID, PAYLOAD, PAYLOAD_LEN);
 
-    // decay nodes and compact the list to remove nodes if we can!
+    // decay nodes and renew ones we've been seeing strongly
     for (uint8_t i = 0; i < NUM_NODES; i++) {
-      XMIT[i].ticks--;
-    }
-    NUM_NODES -= compact(XMIT, NUM_NODES);
-
-    // Output diagnostics
-    Serial.print("\n= XMIT NODES: ");
-    for (uint8_t i = 0; i < NUM_NODES; i++) {
-      Serial.print(XMIT[i].nodeID, DEC);
-      Serial.print(":");
-      Serial.print(XMIT[i].ticks, DEC);
-      Serial.print(" ");
-    }
-    Serial.println(";\n");
-
-    // So we know there are NUM_NODES other nodes and 1 of me, which gives us
-    // (NUM_NODES+1) 4-item palettes to choose from to fill out a 16-idx palette
-    static CHSV hsv;
-    for (uint8_t i = 0; i < 16; i++) {
-      if (i % (NUM_NODES + 1) == 0) {
-        hsv = COLORS[NODEID];
-      } else {
-        hsv = COLORS[XMIT[i % NUM_NODES].nodeID];
+      if (XMIT[i].ticks > 0) {
+        XMIT[i].ticks--;
       }
-      hsv.sat = 155 + 100 * (float(i % 4) / 4);
-      currentPalette[i] = hsv;
+      if (avgRssis(XMIT[i].rssis) > RSSITHRESHOLD) {
+        Serial.print("Node over threshold! ");
+        Serial.println(XMIT[i].nodeID, DEC);
+        XMIT[i].ticks = DEFAULT_TICKS;
+      } else {
+        Serial.print("Node under threshold! ... ");
+        Serial.println(XMIT[i].nodeID, DEC);
+      }
     }
+
+    updateCurrentPalette();
   }
 
   EVERY_N_MILLISECONDS(10) {

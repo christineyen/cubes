@@ -5,7 +5,7 @@
 - [x] add some thing so that only other Cubes are considered valid
 - [x] reconsider color palette?
 - [x] rolling average?
-- [ ] reconsider how color palettes blend
+- [x] reconsider how color palettes blend
 - [ ] actually introduce genome concept
 
 ## random shit around adding LEDs
