@@ -83,7 +83,7 @@ typedef struct {
   int16_t rssis[RSSI_WINDOW_LEN];
   uint8_t rssiPtr;
 } NodeRecord;
-const uint8_t DEFAULT_TICKS = 10;
+const uint8_t DEFAULT_TICKS = 5;
 uint8_t NUM_NODES = 0;
 // we rely on promiscuousMode to pick up other nodes' broadcasts, but we keep
 // track of which nodes we've seen (in order to maybe impact our colors)
