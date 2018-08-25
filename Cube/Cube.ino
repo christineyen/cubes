@@ -277,6 +277,12 @@ void loop() {
         XMIT[idx].rssis[XMIT[idx].rssiPtr] = radio.RSSI;
         XMIT[idx].rssiPtr++;
         XMIT[idx].rssiPtr %= RSSI_WINDOW_LEN;
+
+        if (avgRssis(XMIT[idx].rssis) > RSSITHRESHOLD) {
+          Serial.print("Node over threshold! ");
+          Serial.println(XMIT[idx].nodeID, DEC);
+          XMIT[idx].ticks = DEFAULT_TICKS;
+        }
       }
     }
   }
@@ -295,14 +301,6 @@ void loop() {
     for (uint8_t i = 0; i < NUM_NODES; i++) {
       if (XMIT[i].ticks > 0) {
         XMIT[i].ticks--;
-      }
-      if (avgRssis(XMIT[i].rssis) > RSSITHRESHOLD) {
-        Serial.print("Node over threshold! ");
-        Serial.println(XMIT[i].nodeID, DEC);
-        XMIT[i].ticks = DEFAULT_TICKS;
-      } else {
-        Serial.print("Node under threshold! ... ");
-        Serial.println(XMIT[i].nodeID, DEC);
       }
     }
 
