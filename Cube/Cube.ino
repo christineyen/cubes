@@ -96,11 +96,13 @@ CRGBPalette16 currentPalette(COLORS[NODEID]);
 CRGBPalette16 targetPalette;
 
 void setup() {
-  Serial.begin(BAUD);
+  Serial.begin(57600);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
   delay(1000);          // Soft startup to ease the flow of electrons.
 
   FastLED.addLeds<NEOPIXEL, LED_DT>(leds, NUM_LEDS);
-  FastLED.setBrightness(50);
   set_max_power_in_volts_and_milliamps(5, 100); // FastLED Power management set at 5V, 500mA.
 
   radio.initialize(FREQUENCY,NODEID,NETWORKID);

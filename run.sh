@@ -22,7 +22,7 @@ run_sketch() { # takes three args: SKETCH, NODEID, PORT
     -libraries /Users/cyen/Documents/Arduino/libraries \
     -fqbn=arduino:avr:pro:cpu=8MHzatmega328 \
     -build-path=$BUILD_PATH \
-    -prefs=build.extra_flags="-DNODEID=$NODEID -DBAUD=$BAUD" \
+    -prefs=build.extra_flags="-DNODEID=$NODEID" \
     $SKETCH/*.ino
 
   $APP_JAVA_CONTENTS/hardware/tools/avr/bin/avrdude \
@@ -31,7 +31,7 @@ run_sketch() { # takes three args: SKETCH, NODEID, PORT
     -patmega328p \
     -carduino \
     -P /dev/$PORT \
-    -b$BAUD \
+    -b57600 \
     -D \
     -Uflash:w:$BUILD_PATH/$SKETCH.ino.hex:i
 }
