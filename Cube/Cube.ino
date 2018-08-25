@@ -58,7 +58,7 @@ typedef struct {
   int16_t rssis[RSSI_WINDOW_LEN];
   uint8_t rssiPtr;
 } NodeRecord;
-const uint8_t DEFAULT_TICKS = 10;
+const uint8_t DEFAULT_TICKS = 5;
 uint8_t NUM_NODES = 0;
 // we rely on promiscuousMode to pick up other nodes' broadcasts, but we keep
 // track of which nodes we've seen (in order to maybe impact our colors)
@@ -270,13 +270,12 @@ void loop() {
           0,
           { radio.RSSI, -100, -100, -100, -100,
             -100, -100, -100, -100, -100 },
-          1
+          1 // so that the position updated next time through the loop is idx 1
         };
         NUM_NODES++;
       } else {
         XMIT[idx].rssis[XMIT[idx].rssiPtr] = radio.RSSI;
-        XMIT[idx].rssiPtr++;
-        XMIT[idx].rssiPtr %= RSSI_WINDOW_LEN;
+        XMIT[idx].rssiPtr = (XMIT[idx].rssiPtr + 1) % RSSI_WINDOW_LEN;
 
         if (avgRssis(XMIT[idx].rssis) > RSSITHRESHOLD) {
           Serial.print("Node over threshold! ");
