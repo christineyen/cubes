@@ -1,28 +1,6 @@
-// Sample RFM69 sender/node sketch, with ACK and optional encryption, and Automatic Transmission Control
-// Sends periodic messages of increasing length to gateway (id=1)
-// It also looks for an onboard FLASH chip, if present
-// **********************************************************************************
-// Copyright Felix Rusu 2016, http://www.LowPowerLab.com/contact
-// **********************************************************************************
-// License
-// **********************************************************************************
-// This program is free software; you can redistribute it 
-// and/or modify it under the terms of the GNU General    
-// Public License as published by the Free Software       
-// Foundation; either version 3 of the License, or        
-// (at your option) any later version.                    
-//                                                        
-// This program is distributed in the hope that it will   
-// be useful, but WITHOUT ANY WARRANTY; without even the  
-// implied warranty of MERCHANTABILITY or FITNESS FOR A   
-// PARTICULAR PURPOSE. See the GNU General Public        
-// License for more details.                              
-//                                                        
-// Licence can be viewed at                               
-// http://www.gnu.org/licenses/gpl-3.0.txt
-//
-// Please maintain this license information along with authorship
-// and copyright notices in any redistribution of this code
+// CUBES
+#define NODEID        2    //PROVIDED BY BUILD -- must be uniquefor each node on same network (range up to 254, 255 is used for broadcast)
+
 // **********************************************************************************
 #include "FastLED.h"       // FastLED library. Please use the latest development version.
 #include <RFM69.h>         // get it here: https://www.github.com/lowpowerlab/rfm69
@@ -39,9 +17,6 @@
 #define FREQUENCY     RF69_915MHZ //Match freq to the hardware version of radio on your Moteino
 #define IS_RFM69HW_HCW  //uncomment only for RFM69HW/HCW! Leave out if you have RFM69W/CW!
 //*********************************************************************************************
-//************* PREVIOUSLY IMPORTANT - PROVIDED ELSEWHERE *************************************
-//#define NODEID        2    //PROVIDED BY BUILD -- must be unique for each node on same network (range up to 254, 255 is used for broadcast)
-//#define ENCRYPTKEY    "yougetmeYAAAY" //exactly the same 16 characters/bytes on all nodes! -- seems buggy
 
 #ifdef __AVR_ATmega1284P__
   #define LED           15 // Moteino MEGAs have LEDs on D15
@@ -51,7 +26,7 @@
   #define FLASH_SS      8 // and FLASH SS on D8
 #endif
 
-int TRANSMITPERIOD = 1000; //transmit a packet to gateway so often (in ms)
+int TRANSMITPERIOD = 500; //transmit a packet to gateway so often (in ms)
 int16_t RSSITHRESHOLD = -50;
 SPIFlash flash(FLASH_SS, 0xEF30); //EF30 for 4mbit  Windbond chip (W25X40CL)
 RFM69 radio;
@@ -83,7 +58,7 @@ typedef struct {
   int16_t rssis[RSSI_WINDOW_LEN];
   uint8_t rssiPtr;
 } NodeRecord;
-const uint8_t DEFAULT_TICKS = 5;
+const uint8_t DEFAULT_TICKS = 10;
 uint8_t NUM_NODES = 0;
 // we rely on promiscuousMode to pick up other nodes' broadcasts, but we keep
 // track of which nodes we've seen (in order to maybe impact our colors)
